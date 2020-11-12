@@ -2,7 +2,6 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
-import numpy as np
 
 
 class Generator(nn.Module):
