@@ -2,8 +2,8 @@ import numpy as np
 import torch
 
 
-def gen_noise(batch_size: int, noise_dim: int):
-    return torch.randn(batch_size, noise_dim)
+def gen_noise(batch_size: int, noise_dim: int, device: str):
+    return torch.randn(batch_size, noise_dim, device=device)
 
 
 class AverageMeter(object):

@@ -24,6 +24,7 @@ BATCH_SIZE = 128
 WORKERS = 8
 LR = 2e-4
 beta1, beta2 = 0.5, 0.999
+LOG_FREQ = 500
 
 # initialize dataset and dataloader
 transforms = trsf.Compose(
@@ -69,7 +70,7 @@ sha = repo.head.object.hexsha[:6]
 writer = SummaryWriter(log_dir=f"/home/bishwarup/GAN_experiments/dcgan/{sha}")
 
 # make a fixed noise to see the generator evolve over time on it
-fixed_noise = gen_noise(32, NOISE_DIM)
+fixed_noise = gen_noise(32, NOISE_DIM, device=device)
 
 # train loop
 gen.train()
@@ -86,8 +87,8 @@ for epoch in range(EPOCHS):
         global_step = len(loader) * epoch + n_iter
 
         # calculate discriminator loss
-        noise = gen_noise(BATCH_SIZE, NOISE_DIM)
-        fake = gen(noise).to(device)
+        noise = gen_noise(BATCH_SIZE, NOISE_DIM, device=device)
+        fake = gen(noise)
         disc_fake = critic(fake.detach())
         disc_loss_fake = criterion(disc_fake, torch.zeros_like(disc_fake))
         disc_real = critic(real.to(device))
@@ -103,7 +104,7 @@ for epoch in range(EPOCHS):
         lossD.update(disc_loss.item(), BATCH_SIZE)
 
         # calculate generator loss
-        noise2 = gen_noise(BATCH_SIZE, NOISE_DIM)
+        noise2 = gen_noise(BATCH_SIZE, NOISE_DIM, device=device)
         fake2 = gen(noise2)
         disc_fake2 = critic(fake2)
         gen_loss = criterion(disc_fake2, torch.ones_like(disc_fake2))
@@ -121,10 +122,11 @@ for epoch in range(EPOCHS):
             f"epoch: {epoch}, step: {global_step}, lossG: {gen_loss:.4f}, lossD: {disc_loss:.4f}"
         )
 
-        # write tensorboard
+    # write tensorboard every 500 step
+    if global_step % LOG_FREQ == 0:
         with torch.no_grad():
             fixed_fakes = gen(fixed_noise)
-            grid = torchvision.utils.make_grid(fixed_fakes)
+            grid = torchvision.utils.make_grid(fixed_fakes, normalize=True)
             writer.add_image("Generated fakes", grid, global_step=global_step)
 
 # if __name__ == "__main__":
