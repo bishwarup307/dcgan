@@ -1,5 +1,6 @@
 from tqdm import tqdm
 import git
+import sys
 
 import torch
 import torchvision
@@ -80,7 +81,7 @@ for epoch in range(EPOCHS):
     lossD = AverageMeter("LossD")
     lossG = AverageMeter("LossG")
 
-    pbar = tqdm(enumerate(loader), ncols=80)
+    pbar = tqdm(enumerate(loader), ncols=180)
     for n_iter, (real, _) in pbar:
 
         # calculate global step
@@ -122,12 +123,14 @@ for epoch in range(EPOCHS):
             f"epoch: {epoch}, step: {global_step}, lossG: {gen_loss:.4f}, lossD: {disc_loss:.4f}"
         )
 
-    # write tensorboard every 500 step
-    if global_step % LOG_FREQ == 0:
-        with torch.no_grad():
-            fixed_fakes = gen(fixed_noise)
+        # write tensorboard every 500 step
+        if global_step % LOG_FREQ == 0:
+            with torch.no_grad():
+                fixed_fakes = gen(fixed_noise)
             grid = torchvision.utils.make_grid(fixed_fakes, normalize=True)
+            print(grid.size())
             writer.add_image("Generated fakes", grid, global_step=global_step)
+            # sys.exit(0)
 
 # if __name__ == "__main__":
 #
