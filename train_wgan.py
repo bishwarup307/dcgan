@@ -1,6 +1,6 @@
 from tqdm import tqdm
 import git
-import sys
+import numpy as np
 
 import torch
 import torchvision
@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from model import Generator, Critic
-from utils import CutTop, AverageMeter, gen_noise
+from utils import CutTop, AverageMeter, gen_noise, get_grad, gradient_penalty
 
 # Some settings
 IMAGE_SIZE = 64
@@ -26,6 +26,8 @@ WORKERS = 8
 LR = 2e-4
 beta1, beta2 = 0.5, 0.999
 LOG_FREQ = 500
+C_LAMBDA = 10
+CRITIC_ITERS = 5
 
 # initialize dataset and dataloader
 transforms = trsf.Compose(
@@ -84,31 +86,40 @@ for epoch in range(EPOCHS):
     pbar = tqdm(enumerate(loader))
     for n_iter, (real, _) in pbar:
 
+        real = real.to(device)
         # calculate global step
         global_step = len(loader) * epoch + n_iter
 
-        # calculate discriminator loss
-        noise = gen_noise(BATCH_SIZE, NOISE_DIM, device=device)
-        fake = gen(noise)
-        disc_fake = critic(fake.detach())
-        disc_loss_fake = criterion(disc_fake, torch.zeros_like(disc_fake))
-        disc_real = critic(real.to(device))
-        disc_loss_real = criterion(disc_real, torch.ones_like(disc_real))
-        disc_loss = (disc_loss_fake + disc_loss_real) / 2.0
+        crit_losses = []
+        for _ in range(CRITIC_ITERS):
+            # calculate discriminator loss
+            noise = gen_noise(BATCH_SIZE, NOISE_DIM, device=device)
+            fake = gen(noise)
+            disc_fake = critic(fake.detach())
+            disc_real = critic(real)
 
-        # update discriminator
-        opt_disc.zero_grad()
-        disc_loss.backward(retain_graph=True)
-        opt_disc.step()
+            # calculate gradient penalty
+            epsilon = torch.rand(BATCH_SIZE, 1, 1, 1, device=device, requires_grad=True)
+            grads = get_grad(critic, real, fake.detach(), epsilon)
+            gp = gradient_penalty(grads)
+
+            # calculate discriminator loss
+            disc_loss = -(torch.mean(disc_real) - torch.mean(disc_fake)) + C_LAMBDA * gp
+
+            # update discriminator
+            opt_disc.zero_grad()
+            disc_loss.backward(retain_graph=True)
+            opt_disc.step()
+            crit_losses.append(disc_loss.item())
 
         # monitor running loss
-        lossD.update(disc_loss.item(), BATCH_SIZE)
+        lossD.update(np.mean(crit_losses), BATCH_SIZE)
 
         # calculate generator loss
         noise2 = gen_noise(BATCH_SIZE, NOISE_DIM, device=device)
         fake2 = gen(noise2)
         disc_fake2 = critic(fake2)
-        gen_loss = criterion(disc_fake2, torch.ones_like(disc_fake2))
+        gen_loss = -torch.mean(disc_fake2)
 
         # update generator
         opt_gen.zero_grad()

@@ -39,3 +39,29 @@ class CutTop:
         img = np.array(img)
         img = img[40:, ...]
         return img
+
+
+def get_grad(
+    crit: torch.nn.Module, real: torch.Tensor, fake: torch.Tensor, epsilon: torch.Tensor
+):
+    mixed_images = epsilon * real + (1.0 - epsilon) * fake
+    mixed_scores = crit(mixed_images)
+    grads = torch.autograd.grad(
+        inputs=mixed_images,
+        outputs=mixed_scores,
+        grad_outputs=torch.ones_like(mixed_scores),
+        create_graph=True,
+        retain_graph=True,
+    )[0]
+    return grads
+
+
+def gradient_penalty(grads):
+    grads = grads.reshape(len(grads), -1)
+    norms = grads.norm(2, dim=1)
+    gp = torch.mean((norms - 1.0) ** 2)
+    return gp
+
+
+# class WLOSS_GP(torch.nn.Module):
+#     def __init__(self):
