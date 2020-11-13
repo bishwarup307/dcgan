@@ -21,11 +21,11 @@ NOISE_DIM = 100
 USE_BATCHNORM = True
 UPSAMPLE_MODE = None
 EPOCHS = 100
-BATCH_SIZE = 128
+cur_batch_size = 128
 WORKERS = 8
 LR = 2e-4
 beta1, beta2 = 0.5, 0.999
-LOG_FREQ = 500
+LOG_FREQ = 100
 C_LAMBDA = 10
 CRITIC_ITERS = 5
 
@@ -45,7 +45,7 @@ dataset = torchvision.datasets.ImageFolder(
     "/home/bishwarup/torchvision_datasets/celebA/img_align_celeba", transform=transforms
 )
 loader = DataLoader(
-    dataset, batch_size=BATCH_SIZE, num_workers=WORKERS, pin_memory=True
+    dataset, batch_size=cur_batch_size, num_workers=WORKERS, pin_memory=True
 )
 
 # initialize models
@@ -87,19 +87,23 @@ for epoch in range(EPOCHS):
     for n_iter, (real, _) in pbar:
 
         real = real.to(device)
+        cur_batch_size = real.size(0)
+
         # calculate global step
         global_step = len(loader) * epoch + n_iter
 
         crit_losses = []
         for _ in range(CRITIC_ITERS):
             # calculate discriminator loss
-            noise = gen_noise(BATCH_SIZE, NOISE_DIM, device=device)
+            noise = gen_noise(cur_batch_size, NOISE_DIM, device=device)
             fake = gen(noise)
             disc_fake = critic(fake.detach())
             disc_real = critic(real)
 
             # calculate gradient penalty
-            epsilon = torch.rand(BATCH_SIZE, 1, 1, 1, device=device, requires_grad=True)
+            epsilon = torch.rand(
+                cur_batch_size, 1, 1, 1, device=device, requires_grad=True
+            )
             grads = get_grad(critic, real, fake.detach(), epsilon)
             gp = gradient_penalty(grads)
 
@@ -113,10 +117,10 @@ for epoch in range(EPOCHS):
             crit_losses.append(disc_loss.item())
 
         # monitor running loss
-        lossD.update(np.mean(crit_losses), BATCH_SIZE)
+        lossD.update(np.mean(crit_losses), cur_batch_size)
 
         # calculate generator loss
-        noise2 = gen_noise(BATCH_SIZE, NOISE_DIM, device=device)
+        noise2 = gen_noise(cur_batch_size, NOISE_DIM, device=device)
         fake2 = gen(noise2)
         disc_fake2 = critic(fake2)
         gen_loss = -torch.mean(disc_fake2)
@@ -127,7 +131,7 @@ for epoch in range(EPOCHS):
         opt_gen.step()
 
         # monitor running loss
-        lossG.update(gen_loss.item(), BATCH_SIZE)
+        lossG.update(gen_loss.item(), cur_batch_size)
 
         # update pbar description
         pbar.set_description(
