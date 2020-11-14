@@ -14,7 +14,7 @@ from utils import CutTop, AverageMeter, gen_noise
 
 # Some settings
 IMAGE_SIZE = 64
-IMAGE_CHANNELS = 1
+IMAGE_CHANNELS = 3
 HIDDEN_DIM_GEN = 64
 HIDDEN_DIM_DISC = 64
 NOISE_DIM = 100
@@ -30,8 +30,8 @@ LOG_FREQ = 500
 # initialize dataset and dataloader
 transforms = trsf.Compose(
     [
-        # CutTop(),
-        # trsf.ToPILImage(),
+        CutTop(),
+        trsf.ToPILImage(),
         trsf.Resize(IMAGE_SIZE),
         trsf.ToTensor(),
         trsf.Normalize(
@@ -39,13 +39,13 @@ transforms = trsf.Compose(
         ),
     ]
 )
-# dataset = torchvision.datasets.ImageFolder(
-#     "/home/bishwarup/torchvision_datasets/celebA/img_align_celeba", transform=transforms
-# )
-
-dataset = torchvision.datasets.MNIST(
-    root="~/torchvision_datasets/MNIST", train=True, download=True, transform=transforms
+dataset = torchvision.datasets.ImageFolder(
+    "/home/bishwarup/torchvision_datasets/celebA/img_align_celeba", transform=transforms
 )
+
+# dataset = torchvision.datasets.MNIST(
+#     root="~/torchvision_datasets/MNIST", train=True, download=True, transform=transforms
+# )
 loader = DataLoader(
     dataset, batch_size=BATCH_SIZE, num_workers=WORKERS, pin_memory=True
 )
