@@ -19,14 +19,14 @@ HIDDEN_DIM_GEN = 64
 HIDDEN_DIM_DISC = 64
 NOISE_DIM = 100
 USE_BATCHNORM = True
-UPSAMPLE_MODE = "nearest"
+UPSAMPLE_MODE = "bilinear"
 EPOCHS = 100
 BATCH_SIZE = 128
 WORKERS = 8
 LR = 2e-4
 beta1, beta2 = 0.5, 0.999
 LOG_FREQ = 500
-SPECTRAL_NORM = True
+SPECTRAL_NORM = False
 
 # initialize dataset and dataloader
 transforms = trsf.Compose(
