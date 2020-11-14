@@ -90,7 +90,7 @@ class ModelCheckpoint:
         os.makedirs(self.path, exist_ok=True)
 
     def _get_all_checkpoints(self):
-        return sorted(glob.glob(self.path + os.sep + ".pth"))
+        return sorted(glob.glob(os.path.join(self.path, "*.pth")))
 
     def _delete_prev_checkpoints(self):
         prev_ckpt = self._get_all_checkpoints()
@@ -105,3 +105,10 @@ class ModelCheckpoint:
             torch.save(
                 model.state_dict(), os.path.join(self.path, f"gen_epoch_{step}.pth")
             )
+
+
+if __name__ == "__main__":
+    checkpointer = ModelCheckpoint(
+        "/home/bishwarup/GAN_experiments/dcgan/2ab2da", freq=1, keep_n=10
+    )
+    print(checkpointer._get_all_checkpoints()[:-10])
