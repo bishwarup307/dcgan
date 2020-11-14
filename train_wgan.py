@@ -9,12 +9,12 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from model import Generator, Critic
+from model import Generator, Critic, init_weights
 from utils import CutTop, AverageMeter, gen_noise, get_grad, gradient_penalty
 
 # Some settings
 IMAGE_SIZE = 64
-IMAGE_CHANNELS = 3
+IMAGE_CHANNELS = 1
 HIDDEN_DIM_GEN = 64
 HIDDEN_DIM_DISC = 64
 NOISE_DIM = 100
@@ -32,8 +32,8 @@ CRITIC_ITERS = 5
 # initialize dataset and dataloader
 transforms = trsf.Compose(
     [
-        CutTop(),
-        trsf.ToPILImage(),
+        # CutTop(),
+        # trsf.ToPILImage(),
         trsf.Resize(IMAGE_SIZE),
         trsf.ToTensor(),
         trsf.Normalize(
@@ -41,9 +41,13 @@ transforms = trsf.Compose(
         ),
     ]
 )
-dataset = torchvision.datasets.ImageFolder(
-    "/home/bishwarup/torchvision_datasets/celebA/img_align_celeba", transform=transforms
+# dataset = torchvision.datasets.ImageFolder(
+#     "/home/bishwarup/torchvision_datasets/celebA/img_align_celeba", transform=transforms
+# )
+dataset = torchvision.datasets.MNIST(
+    root="~/torchvision_datasets/MNIST", train=True, download=True
 )
+
 loader = DataLoader(
     dataset, batch_size=cur_batch_size, num_workers=WORKERS, pin_memory=True
 )
@@ -61,6 +65,9 @@ critic = Critic(
     im_ch=IMAGE_CHANNELS, hidden_dim=HIDDEN_DIM_DISC, use_batchnorm=USE_BATCHNORM
 )
 critic = critic.to(device)
+
+gen.apply(init_weights)
+critic.apply(init_weights)
 
 # configure loss and optimizers
 criterion = nn.BCEWithLogitsLoss()
