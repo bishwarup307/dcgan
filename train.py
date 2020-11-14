@@ -49,6 +49,7 @@ loader = DataLoader(
 # initialize models
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 gen = Generator(
+    im_ch=IMAGE_CHANNELS,
     latent_dim=NOISE_DIM,
     hidden_dim=HIDDEN_DIM_GEN,
     use_batchnorm=USE_BATCHNORM,

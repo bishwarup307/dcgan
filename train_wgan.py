@@ -45,7 +45,7 @@ transforms = trsf.Compose(
 #     "/home/bishwarup/torchvision_datasets/celebA/img_align_celeba", transform=transforms
 # )
 dataset = torchvision.datasets.MNIST(
-    root="~/torchvision_datasets/MNIST", train=True, download=True
+    root="~/torchvision_datasets/MNIST", train=True, download=True, transform=transforms
 )
 
 loader = DataLoader(
@@ -55,6 +55,7 @@ loader = DataLoader(
 # initialize models
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 gen = Generator(
+    im_ch=IMAGE_CHANNELS,
     latent_dim=NOISE_DIM,
     hidden_dim=HIDDEN_DIM_GEN,
     use_batchnorm=USE_BATCHNORM,
@@ -66,8 +67,8 @@ critic = Critic(
 )
 critic = critic.to(device)
 
-gen.apply(init_weights)
-critic.apply(init_weights)
+gen = gen.apply(init_weights)
+critic = critic.apply(init_weights)
 
 # configure loss and optimizers
 criterion = nn.BCEWithLogitsLoss()

@@ -99,23 +99,24 @@ class Critic(nn.Module):
 
 
 def init_weights(m):
+    # print(m)
     if isinstance(m, (nn.Conv2d, nn.ConvTranspose2d)):
         nn.init.normal_(m.weight.data, 0, 0.02)
     elif isinstance(m, nn.BatchNorm2d):
-        nn.init.normal_(m.weight.data, 1, 0.02)
+        nn.init.normal_(m.weight.data, 0, 0.02)
         nn.init.constant_(m.bias.data, 0)
     else:
-        raise NotImplementedError
+        pass
 
 
 if __name__ == "__main__":
     t = torch.randn(4, 100)
-    gen = Generator(im_ch=3, upsample_mode="bilinear")
+    gen = Generator(im_ch=1, upsample_mode="bilinear")
     output = gen(t)
     print(output.size())
-    critic = Critic()
-    cr_output = critic(output)
-    print(cr_output.size())
+    # critic = Critic()
+    # cr_output = critic(output)
+    # print(cr_output.size())
     # print(gen)
 
 
