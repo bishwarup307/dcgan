@@ -1,6 +1,5 @@
 import glob
 import os
-import shutil
 
 import numpy as np
 import torch
@@ -97,7 +96,7 @@ class ModelCheckpoint:
         if self.keep_n > 0:
             prev_ckpt = prev_ckpt[: -self.keep_n]
         for ckpt in prev_ckpt:
-            shutil.rmtree(ckpt)
+            os.remove(ckpt)
 
     def save(self, model: torch.nn.Module, step: int):
         if step % self.freq == 0:
