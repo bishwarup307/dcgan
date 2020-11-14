@@ -26,6 +26,7 @@ WORKERS = 8
 LR = 2e-4
 beta1, beta2 = 0.5, 0.999
 LOG_FREQ = 500
+SPECTRAL_NORM = True
 
 # initialize dataset and dataloader
 transforms = trsf.Compose(
@@ -61,7 +62,10 @@ gen = Generator(
 )
 gen = gen.to(device)
 critic = Critic(
-    im_ch=IMAGE_CHANNELS, hidden_dim=HIDDEN_DIM_DISC, use_batchnorm=USE_BATCHNORM
+    im_ch=IMAGE_CHANNELS,
+    hidden_dim=HIDDEN_DIM_DISC,
+    use_batchnorm=USE_BATCHNORM,
+    spectral_norm=SPECTRAL_NORM,
 )
 critic = critic.to(device)
 

@@ -67,10 +67,15 @@ class Generator(nn.Module):
 
 class Critic(nn.Module):
     def __init__(
-        self, im_ch: int = 3, hidden_dim: int = 64, use_batchnorm: bool = True
+        self,
+        im_ch: int = 3,
+        hidden_dim: int = 64,
+        use_batchnorm: bool = True,
+        spectral_norm: bool = False,
     ):
         super(Critic, self).__init__()
         self.use_batchnorm = use_batchnorm
+        self.spectral_norm = spectral_norm
         self.crit = nn.Sequential(
             self._make_block(im_ch, hidden_dim),
             self._make_block(hidden_dim, hidden_dim * 2),
@@ -83,11 +88,25 @@ class Critic(nn.Module):
         layers = []
         padding = 0 if last_block else 1
         bias = not self.use_batchnorm
-        layers.append(
-            nn.Conv2d(
-                in_ch, out_ch, kernel_size=4, stride=2, padding=padding, bias=bias
+        if self.spectral_norm:
+            layers.append(
+                torch.nn.utils.spectral_norm(
+                    nn.Conv2d(
+                        in_ch,
+                        out_ch,
+                        kernel_size=4,
+                        stride=2,
+                        padding=padding,
+                        bias=bias,
+                    )
+                )
             )
-        )
+        else:
+            layers.append(
+                nn.Conv2d(
+                    in_ch, out_ch, kernel_size=4, stride=2, padding=padding, bias=bias
+                )
+            )
         if self.use_batchnorm and not last_block:
             layers.append(nn.BatchNorm2d(out_ch))
         if not last_block:
