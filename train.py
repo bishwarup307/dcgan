@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from model import Generator, Critic, init_weights
-from utils import CutTop, AverageMeter, gen_noise
+from utils import CutTop, AverageMeter, gen_noise, ModelCheckpoint
 
 # Some settings
 IMAGE_SIZE = 64
@@ -27,6 +27,8 @@ LR = 2e-4
 beta1, beta2 = 0.5, 0.999
 LOG_FREQ = 500
 SPECTRAL_NORM = True
+CKPT_FREQ = 500
+KEEP_LAST_N_CKPT = 10
 
 # initialize dataset and dataloader
 transforms = trsf.Compose(
@@ -80,7 +82,8 @@ opt_disc = torch.optim.Adam(critic.parameters(), lr=LR, betas=(beta1, beta2))
 # configure tensorboard writer
 repo = git.Repo(search_parent_directories=True)
 sha = repo.head.object.hexsha[:6]
-writer = SummaryWriter(log_dir=f"/home/bishwarup/GAN_experiments/dcgan/{sha}")
+logdir = f"/home/bishwarup/GAN_experiments/dcgan/{sha}"
+writer = SummaryWriter(log_dir=logdir)
 
 # make a fixed noise to see the generator evolve over time on it
 fixed_noise = gen_noise(32, NOISE_DIM, device=device)
@@ -88,6 +91,8 @@ fixed_noise = gen_noise(32, NOISE_DIM, device=device)
 # train loop
 gen.train()
 critic.train()
+
+checkpointer = ModelCheckpoint(logdir, freq=CKPT_FREQ, keep_n=KEEP_LAST_N_CKPT)
 
 for epoch in range(EPOCHS):
     lossD = AverageMeter("LossD")
@@ -137,12 +142,17 @@ for epoch in range(EPOCHS):
 
         # write tensorboard every 500 step
         if global_step % LOG_FREQ == 0:
+            gen.eval()
             with torch.no_grad():
                 fixed_fakes = gen(fixed_noise)
             grid = torchvision.utils.make_grid(fixed_fakes, normalize=True)
             # print(grid.size())
             writer.add_image("Generated fakes", grid, global_step=global_step)
             # sys.exit(0)
+            gen.train()
+
+        checkpointer.save(gen, global_step)
+
 
 # if __name__ == "__main__":
 #

@@ -1,3 +1,7 @@
+import glob
+import os
+import shutil
+
 import numpy as np
 import torch
 
@@ -63,5 +67,41 @@ def gradient_penalty(grads):
     return gp
 
 
-# class WLOSS_GP(torch.nn.Module):
-#     def __init__(self):
+def save_checkpoint(model: torch.nn.Module, path: str):
+    """
+    saves checkpoint for the model
+    Args:
+        model (nn.Module): a pytorch model object
+        path (str): path to save the checkpoint
+
+    Returns:
+    """
+    torch.save(model.state_dict(), path)
+
+
+class ModelCheckpoint:
+    def __init__(self, path: str, freq: int, keep_n: int = -1):
+        self.path = path
+        self.freq = freq
+        self.keep_n = keep_n
+        self._make_path()
+
+    def _make_path(self):
+        os.makedirs(self.path, exist_ok=True)
+
+    def _get_all_checkpoints(self):
+        return sorted(glob.glob(self.path + os.sep + ".pth"))
+
+    def _delete_prev_checkpoints(self):
+        prev_ckpt = self._get_all_checkpoints()
+        if self.keep_n > 0:
+            prev_ckpt = prev_ckpt[: -self.keep_n]
+        for ckpt in prev_ckpt:
+            shutil.rmtree(ckpt)
+
+    def save(self, model: torch.nn.Module, step: int):
+        if step % self.freq == 0:
+            self._delete_prev_checkpoints()
+            torch.save(
+                model.state_dict(), os.path.join(self.path, f"gen_epoch_{step}.pth")
+            )
