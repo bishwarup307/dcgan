@@ -9,7 +9,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from model import Generator, Critic
+from model import Generator, Critic, init_weights
 from utils import CutTop, AverageMeter, gen_noise
 
 # Some settings
@@ -68,6 +68,9 @@ critic = Critic(
     spectral_norm=SPECTRAL_NORM,
 )
 critic = critic.to(device)
+
+critic.apply(init_weights)
+gen.apply(init_weights)
 
 # configure loss and optimizers
 criterion = nn.BCEWithLogitsLoss()
