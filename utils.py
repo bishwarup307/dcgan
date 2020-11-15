@@ -1,11 +1,12 @@
 import glob
 import os
-from typing import Optional
+from typing import Optional, Union, Any
 
 import numpy as np
 import scipy.linalg
 import torch
 import torchvision
+from torch.utils.data import TensorDataset, DataLoader
 
 
 def gen_noise(batch_size: int, noise_dim: int, device: str):
@@ -152,11 +153,41 @@ def load_inception_model(
     return inception
 
 
-def get_inception_features(model: torch.nn.Module, batch: torch.Tensor):
+def get_inception_features(
+    model: torch.nn.Module,
+    batch: torch.Tensor,
+    batch_size: Optional[int] = None,
+    device: Union[str, torch.device] = "cpu",
+    hook: Optional[Any] = None,
+):
+    model = model.to(device)
     model.eval()
     batch = preprocess_inception(batch)
-    features = model(batch.detach()).cpu()
-    return features
+    if batch_size is not None:
+        features = []
+        int_features = []
+
+        assert batch_size > 0, "invalid batch size"
+        ds = TensorDataset(batch)
+        loader = DataLoader(
+            ds, batch_size=batch_size, num_workers=4, pin_memory=True, shuffle=False
+        )
+        for _, sample in enumerate(loader):
+            feat = model(sample[0].to(device))
+            features.append(feat.detach().cpu())
+            if hook is not None:
+                int_features.append(hook.output.detach().cpu())
+
+        features = torch.cat(features, dim=0)
+        if hook is not None:
+            int_features = torch.cat(int_features, dim=0)
+    else:
+        features = model(batch.to(device))
+        if hook is not None:
+            int_features = hook.output.detach().cpu()
+        features = features.detach().cpu()
+
+    return features, int_features
 
 
 def get_covariance(features: torch.Tensor):
@@ -178,7 +209,7 @@ def matrix_sqrt(x):
 def fid(
     mu_x: torch.Tensor, mu_y: torch.Tensor, sigma_x: torch.Tensor, sigma_y: torch.Tensor
 ):
-    return (mu_x - mu_y).norm(2) + (
+    return (mu_x - mu_y).norm(2) + torch.trace(
         sigma_x + sigma_y - 2 * matrix_sqrt(sigma_x @ sigma_y)
     )
 

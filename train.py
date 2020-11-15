@@ -41,9 +41,11 @@ WORKERS = 8
 LR = 2e-4
 beta1, beta2 = 0.5, 0.999
 LOG_FREQ = 500
-# SPECTRAL_NORM = True
+SPECTRAL_NORM = False
 CKPT_FREQ = 500
 KEEP_LAST_N_CKPT = 10
+MAX_EVAL_SAMPLES = 5_000
+EVAL_BATCH_SIZE = 32
 
 # initialize dataset and dataloader
 transforms = trsf.Compose(
@@ -104,33 +106,17 @@ writer = SummaryWriter(log_dir=logdir)
 fixed_noise = gen_noise(32, NOISE_DIM, device=device)
 
 # train loop
-gen.train()
-critic.train()
-
 checkpointer = ModelCheckpoint(logdir, freq=CKPT_FREQ, keep_n=KEEP_LAST_N_CKPT)
 
-# initialize inception model for evaluation
-inception = load_inception_model(
-    pretrained=False,
-    weights="/home/bishwarup/Downloads/inception_v3_google-1a9a5a14.pth",
-    device=device,
-)
-get_avgpool = FeatureMap()
-inception.avgpool.register_forward_hook(
-    get_avgpool
-)  # register hook to get avgpool output for FID
-
 for epoch in range(EPOCHS):
+    torch.cuda.empty_cache()
+
+    gen.train()
+    critic.train()
+
     lossD = AverageMeter("LossD")
     lossG = AverageMeter("LossG")
 
-    mu_real, sigma_real = load_tensor("mu", logdir), load_tensor("sigma", logdir)
-
-    calculate_real_features = mu_real is None or sigma_real is None
-
-    real_features = []
-    fake_features = []  # required for FID
-    fake_softmax = []  # required for inception score
     global_step = 0
 
     pbar = tqdm(enumerate(loader))
@@ -140,19 +126,9 @@ for epoch in range(EPOCHS):
         # calculate global step
         global_step = len(loader) * epoch + n_iter
 
-        # pass real images to inception for fid
-        if calculate_real_features:
-            _ = get_inception_features(inception, real)
-            real_features.append(get_avgpool.output.detach().cpu())
-
         # calculate discriminator loss
         noise = gen_noise(BATCH_SIZE, NOISE_DIM, device=device)
         fake = gen(noise)
-
-        logits = get_inception_features(inception, fake.detach())
-        logits = F.softmax(logits, dim=1)
-        fake_softmax.append(logits.detach().cpu())
-        fake_features.append(get_avgpool.output.detach().cpu())
 
         disc_fake = critic(fake.detach())
         disc_loss_fake = criterion(disc_fake, torch.zeros_like(disc_fake))
@@ -193,19 +169,68 @@ for epoch in range(EPOCHS):
             with torch.no_grad():
                 fixed_fakes = gen(fixed_noise)
             grid = torchvision.utils.make_grid(fixed_fakes, normalize=True)
-            # print(grid.size())
             writer.add_image("Generated fakes", grid, global_step=global_step)
-            # sys.exit(0)
             gen.train()
 
         checkpointer.save(gen, global_step)
 
-    if len(real_features):
+    ####################
+    # start evaluation #
+    ####################
+    # initialize inception model for evaluation
+    gen.eval()
+
+    print(f"starting evaluation...")
+    inception = load_inception_model(
+        pretrained=False,
+        weights="/home/bishwarup/Downloads/inception_v3_google-1a9a5a14.pth",
+        device=device,
+    )
+    get_avgpool = FeatureMap()
+    inception.avgpool.register_forward_hook(
+        get_avgpool
+    )  # register hook to get avgpool output for FID
+
+    # get the real mean and covariance matrix -> need to do only once
+    mu_real, sigma_real = load_tensor("mu", logdir), load_tensor("sigma", logdir)
+    calculate_real_features = mu_real is None or sigma_real is None
+    if calculate_real_features:
+        real_features = []
+        for i, (real, _) in enumerate(loader):
+            _, real_feats = get_inception_features(
+                inception,
+                real.to("cpu"),
+                batch_size=EVAL_BATCH_SIZE,
+                device=device,
+                hook=get_avgpool,
+            )
+            real_features.append(real_feats)
+            if EVAL_BATCH_SIZE * (i + 1) >= MAX_EVAL_SAMPLES:
+                break
         real_features = torch.cat(real_features, dim=0)
         mu_real = real_features.mean(dim=0)
         sigma_real = get_covariance(real_features)
         save_tensor(mu_real, "mu", logdir)
         save_tensor(sigma_real, "sigma", logdir)
+
+    # get statistics on fake samples
+    fake_features = []  # required for FID
+    fake_softmax = []  # required for inception score
+
+    for _ in range(MAX_EVAL_SAMPLES // EVAL_BATCH_SIZE + 1):
+        eval_noise = gen_noise(32, NOISE_DIM, device=device)
+        fakes = gen(eval_noise)
+
+        fake_logits, fake_feats = get_inception_features(
+            inception,
+            fakes.detach().cpu(),
+            batch_size=EVAL_BATCH_SIZE,
+            device=device,
+            hook=get_avgpool,
+        )
+        fake_logits = F.softmax(fake_logits, dim=1)
+        fake_softmax.append(fake_logits)
+        fake_features.append(fake_feats)
 
     fake_features = torch.cat(fake_features, dim=0)
     fake_softmax = torch.cat(fake_softmax, dim=0)
@@ -218,8 +243,9 @@ for epoch in range(EPOCHS):
     sigma_fake = get_covariance(fake_features)
     fid_score = fid(mu_real, mu_fake, sigma_real, sigma_fake)
 
-    writer.add_scalar("scores/FID", fid_score, global_step=global_step)
-    writer.add_scalar("scores/IS", inc_score, global_step=global_step)
+    writer.add_scalar("scores/FID", fid_score.item(), global_step=global_step)
+    writer.add_scalar("scores/IS", inc_score.item(), global_step=global_step)
+    del inception
 
 # if __name__ == "__main__":
 #
