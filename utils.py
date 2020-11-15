@@ -43,7 +43,7 @@ class CutTop:
 
     def __call__(self, img):
         img = np.array(img)
-        img = img[40:, ...]
+        img = img[self.cut_top :, ...]
         return img
 
 
@@ -116,11 +116,23 @@ def preprocess_inception(img):
     return img
 
 
+class FeatureMap:
+    def __init__(self):
+        self.output = None
+
+    def __call__(self, module, module_in, module_out):
+        self.output = module_out.squeeze()
+
+    def clear(self):
+        self.output = []
+
+
 def load_inception_model(
     pretrained: Optional[bool] = True,
     weights: Optional[str] = None,
     device: str = "cpu",
-    top: bool = False,
+    # top: bool = False,
+    # hooks: Optional[List] = []
 ):
     if not pretrained and weights is None:
         raise ValueError(f"`weights_path` must be provided when `pretrained == False`")
@@ -129,9 +141,14 @@ def load_inception_model(
     )
     if not pretrained:
         inception.load_state_dict(torch.load(weights))
-    if not top:
-        inception.fc = torch.nn.Identity()
+    # if not top:
+    #     inception.fc = torch.nn.Identity()
+
+    # if hooks:
+    #     for hook in hooks:
+    #         inception.
     inception = inception.to(device)
+    inception.eval()
     return inception
 
 
@@ -140,6 +157,10 @@ def get_inception_features(model: torch.nn.Module, batch: torch.Tensor):
     batch = preprocess_inception(batch)
     features = model(batch.detach()).cpu()
     return features
+
+
+def get_covariance(features: torch.Tensor):
+    return torch.Tensor(np.cov(features.detach().numpy(), rowvar=False))
 
 
 def matrix_sqrt(x):
@@ -155,7 +176,7 @@ def matrix_sqrt(x):
 
 
 def fid(
-    mu_x: torch.Tensor, mu_y: torch.Tensor, sigma_x: torch.Tensor, sigma_y=torch.Tensor
+    mu_x: torch.Tensor, mu_y: torch.Tensor, sigma_x: torch.Tensor, sigma_y: torch.Tensor
 ):
     return (mu_x - mu_y).norm(2) + (
         sigma_x + sigma_y - 2 * matrix_sqrt(sigma_x @ sigma_y)
@@ -167,6 +188,20 @@ def inception_score(batch: torch.Tensor, eps=1e-6):
     kld = batch * (torch.log(batch + eps) - torch.log(py + eps))
     score = kld.sum(dim=1).mean(dim=0).exp()
     return score
+
+
+def save_tensor(t: torch.Tensor, name: str, save_dir: str = "./"):
+    t = t.detach().cpu().numpy()
+    np.save(os.path.join(save_dir, name), t)
+
+
+def load_tensor(name: str, save_dir: str = "./"):
+    path = os.path.join(save_dir, f"{name}.npy")
+    try:
+        t = np.load(path)
+        return torch.from_numpy(t).float()
+    except FileNotFoundError:
+        return None
 
 
 # def fid(
