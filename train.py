@@ -45,7 +45,7 @@ SPECTRAL_NORM = False
 CKPT_FREQ = 500
 KEEP_LAST_N_CKPT = 10
 MAX_EVAL_SAMPLES = 5_000
-EVAL_BATCH_SIZE = 32
+EVAL_BATCH_SIZE = 16
 
 # initialize dataset and dataloader
 transforms = trsf.Compose(
@@ -107,7 +107,7 @@ fixed_noise = gen_noise(32, NOISE_DIM, device=device)
 
 # train loop
 checkpointer = ModelCheckpoint(logdir, freq=CKPT_FREQ, keep_n=KEEP_LAST_N_CKPT)
-best_fid = np.INF
+best_fid = np.inf
 for epoch in range(EPOCHS):
     torch.cuda.empty_cache()
 
@@ -210,6 +210,7 @@ for epoch in range(EPOCHS):
         real_features = torch.cat(real_features, dim=0)
         mu_real = real_features.mean(dim=0)
         sigma_real = get_covariance(real_features)
+        print(f"number of real samples for evaluation: {len(real_features)}")
         save_tensor(mu_real, "mu", logdir)
         save_tensor(sigma_real, "sigma", logdir)
 

@@ -160,6 +160,7 @@ def get_inception_features(
     device: Union[str, torch.device] = "cpu",
     hook: Optional[Any] = None,
 ):
+    torch.cuda.empty_cache()
     model = model.to(device)
     model.eval()
     batch = preprocess_inception(batch)
@@ -173,7 +174,8 @@ def get_inception_features(
             ds, batch_size=batch_size, num_workers=4, pin_memory=True, shuffle=False
         )
         for _, sample in enumerate(loader):
-            feat = model(sample[0].to(device))
+            with torch.no_grad():
+                feat = model(sample[0].to(device))
             features.append(feat.detach().cpu())
             if hook is not None:
                 int_features.append(hook.output.detach().cpu())
