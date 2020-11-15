@@ -1,14 +1,15 @@
-from tqdm import tqdm
-import git
-import sys
+import os
 
+import git
+import numpy as np
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 import torchvision
 import torchvision.transforms as trsf
-import torch.nn as nn
 from torch.utils.data import DataLoader
-import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
 
 from model import Generator, Critic, init_weights
 from utils import (
@@ -17,7 +18,6 @@ from utils import (
     gen_noise,
     ModelCheckpoint,
     load_inception_model,
-    matrix_sqrt,
     fid,
     inception_score,
     FeatureMap,
@@ -107,7 +107,7 @@ fixed_noise = gen_noise(32, NOISE_DIM, device=device)
 
 # train loop
 checkpointer = ModelCheckpoint(logdir, freq=CKPT_FREQ, keep_n=KEEP_LAST_N_CKPT)
-
+best_fid = np.INF
 for epoch in range(EPOCHS):
     torch.cuda.empty_cache()
 
@@ -246,6 +246,11 @@ for epoch in range(EPOCHS):
     writer.add_scalar("scores/FID", fid_score.item(), global_step=global_step)
     writer.add_scalar("scores/IS", inc_score.item(), global_step=global_step)
     del inception
+
+    # save best checkpoint
+    if fid_score.item() < best_fid:
+        torch.save(gen.state_dict(), os.path.join(logdir, "gen_best.pth"))
+        best_fid = fid_score.item()
 
 # if __name__ == "__main__":
 #
